@@ -1,7 +1,7 @@
 ///////////////////////////////////////////////////////////////////////////////////
 // (c) Lucas Jacomet
-// 13.02.2015
-// RFM69HW MQTT Node
+// 06.03.2015
+// RFM69HW MQTT Serial Node
 // 5V Arduino pro Mini with LLC
 
 //      Pinmap:
@@ -43,9 +43,7 @@ unsigned int retryWaitTime = 50;
 typedef struct {
   byte    fromNodeID;
   byte    function;
-  int     value1;
-  int     value2;
-  int     value3;
+  long    value;
   byte    voltage;
   byte    temperature;
 } 
@@ -53,6 +51,7 @@ Payload;
 
 Payload txStruct;
 Payload rxStruct;
+
 int lastRSSI = 0;
 
 bool gotRxStruct = false;
@@ -94,7 +93,6 @@ void receiveRadioData(void)
     if ((radio.DATALEN = sizeof(Payload)))
     {
       rxStruct = *(Payload*)radio.DATA;
-      //if(rxStruct.fromNodeID < 100)
       lastRSSI = radio.readRSSI();
       gotRxStruct = true;
     }
@@ -114,25 +112,8 @@ void processRadioData(void)
   if(gotRxStruct)
   {
     char buffer [30];
-    sprintf(buffer, "s,%d,%d,%d,%d,%d,%d,%d,%d;",rxStruct.fromNodeID, rxStruct.function, rxStruct.value1, rxStruct.value2, rxStruct.value3, rxStruct.voltage, rxStruct.temperature, lastRSSI);
+    sprintf(buffer, "s,%d,%d,%d,%d,%d,%d;",rxStruct.fromNodeID, rxStruct.function, rxStruct.value, rxStruct.voltage, rxStruct.temperature, lastRSSI);
     Serial.print(buffer);
-
-//    Serial.print('s');
-//    Serial.print(',');
-//    Serial.print(rxStruct.fromNodeID);
-//    Serial.print(',');
-//    Serial.print(rxStruct.function);
-//    Serial.print(',');
-//    Serial.print(rxStruct.value1);
-//    Serial.print(',');
-//    Serial.print(rxStruct.value2);
-//    Serial.print(',');
-//    Serial.print(rxStruct.value3);
-//    Serial.print(',');
-//    Serial.print(rxStruct.voltage);
-//    Serial.print(',');
-//    Serial.print(rxStruct.temperature);
-//    Serial.print(';');
     gotRxStruct = false;
   }
 }
@@ -143,19 +124,17 @@ void getSerialData(void)
   {
     delay(4); // time to receive some char
     if(Serial.read() == 's')
-    {  // s,toNodeID,func,val1,val2,val3;
+    {  // s,toNodeID,function,value;
       toNodeID = Serial.parseInt();
       txStruct.function = Serial.parseInt();
-      txStruct.value1 = Serial.parseInt();
-      txStruct.value2 = Serial.parseInt();
-      txStruct.value3 = Serial.parseInt();
+      txStruct.value = Serial.parseInt();
       if(Serial.read() == ';')
         gotTxStruct = true;
     }
   }
 }
 
-void sendRadioData()
+void sendRadioData(void)
 {
   if(gotTxStruct)
   {

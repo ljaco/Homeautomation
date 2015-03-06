@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////////
 // (c) Lucas Jacomet
-// 07.01.2015
+// 06.03.2015
 // RFM69HW IR, DHT11, Motion and 315MHz Node
 // 5V Arduino pro Mini with LLC
 
@@ -45,9 +45,7 @@ unsigned int retryWaitTime = 50;
 typedef struct {
   byte    fromNodeID;
   byte    function;
-  int     value1;
-  int     value2;
-  int     value3;
+  long    value;
   byte    voltage;
   byte    temperature;
 } 
@@ -92,21 +90,20 @@ void setup()
 void loop() 
 {
   receiveData();
-  getIR();
+  checkIR();
   processIR();
   processData();
+  //periodicallySendTempHum();
   sendData();
   if(gotBeep)
-    beep(1,2); //count, time
+    beep(1);
 }
 
-void sendStruct(byte toNode, byte function, int value1, int value2, int value3)
+void sendStruct(byte toNode, byte function, long value)
 {
   toNodeID = toNode;
   txStruct.function = function;
-  txStruct.value1 = value1;
-  txStruct.value2 = value2;
-  txStruct.value3 = value3;
+  txStruct.value = value;
   gotTxStruct = true;
 }
 
@@ -153,31 +150,36 @@ void processData(void)
     switch(rxStruct.function)
     {
     case 0:
-      sendStruct(rxStruct.fromNodeID, rxStruct.function, rxStruct.value1, rxStruct.value2, rxStruct.value3);
+      sendStruct(rxStruct.fromNodeID, rxStruct.function, rxStruct.value);
       break;
 
     case 1:
-      beep(rxStruct.value1, rxStruct.value2);
+      beep(rxStruct.value);
       break;
 
     case 2: 
-      getDHT11();
-      sendStruct(rxStruct.fromNodeID, rxStruct.function, temperature, humidity, 0);
+      digitalWrite(buzzerPin, rxStruct.value);
       break;
       
-      case 3: 
-      digitalWrite(buzzerPin, rxStruct.value1);
+    case 3: 
+      getDHT11();
+      sendStruct(rxStruct.fromNodeID, 8, temperature);
+      break;
+
+    case 4: 
+      getDHT11();
+      sendStruct(rxStruct.fromNodeID, 9, humidity);
       break;
 
     default:
-      beep(1, 10);
+      beep(2);
       break;
     }
     gotRxStruct = false;
   }
 }
 
-void getIR(void)
+void checkIR(void)
 {
   if(irrecv.decode(&results)) 
   {
@@ -196,47 +198,46 @@ void processIR(void)
     {
     case 2011254980: // Up
       Serial.println("Up");
-      sendStruct(2,9,1,0,0);
+      sendStruct(1,1,1);
       break;
 
     case 2011246788: // Down
       Serial.println("Down");
-      sendStruct(2,9,2,0,0);
+      sendStruct(1,2,1);
       break;
 
     case 2011271364: // Left
       Serial.println("Left");
-      sendStruct(2,9,3,0,0);
+      sendStruct(1,3,1);
       break;
 
     case 2011259076: // Right
       Serial.println("Right");
-      sendStruct(2,9,4,0,0);
+      sendStruct(1,4,1);
       break;
 
     case 2011249348: // Enter
       Serial.println("Enter");
-      sendStruct(2,9,5,0,0);
+      sendStruct(1,5,1);
       break;
 
     case 2011283652: // Menu
       Serial.println("Menu");
-      sendStruct(2,9,6,0,0);
+      sendStruct(1,6,1);
       break;
 
     case 2011298500: // Play
       Serial.println("Play");
-      sendStruct(2,9,7,0,0);
+      sendStruct(1,7,1);
       //gotBeep = true;
       break;
 
     default:
       //Serial.println(IRCode);
       break;
-
     } // end switch (IRCode)
-    gotIRData = false;
   }
+  gotIRData = false;
 }
 
 void getDHT11(void)
@@ -255,14 +256,14 @@ void getDHT11(void)
   }
 }
 
-void beep(int count, int time)
+void beep(int count)
 {
   for(int i=0; i<count; ++i)
   {
     digitalWrite(buzzerPin, HIGH);
-    delay(time);
+    delay(20);
     digitalWrite(buzzerPin, LOW);
-    delay(time);
+    delay(20);
   }
   gotBeep = false;
 }

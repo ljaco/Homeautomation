@@ -1,6 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////////
 // (c) Lucas Jacomet
-// 07.01.2015
+// 06.03.2015
 // RFM69HW Button and Rotary encoder Node
 // 3.3V Arduino Pro mini
 
@@ -42,14 +42,12 @@ bool promiscuousMode = false;
 unsigned int retries = 2;
 unsigned int retryWaitTime = 50;
 
-void sendStruct(int toNode, int function=0, int value1=0, int value2=0, int value3=0);
+void sendStruct(int toNode, int function=0, int value=0);
 
 typedef struct {
   byte    fromNodeID;
   byte    function;
-  int     value1;
-  int     value2;
-  int     value3;
+  long    value;
   byte    voltage;
   byte    temperature;
 } 
@@ -85,7 +83,7 @@ Button silver = {silverPin,false,false,false,false,0};
 
 Button rotaryEncoder = {rotaryEncoderButtonPin,false,false,false,false,0};
 
-void getButton(Button& button);
+
 
 bool firstPressed = false;
 
@@ -96,6 +94,8 @@ unsigned long nextSleep = 0;
 long timer = 5000;
 
 int toNodeID = 0;
+
+void checkButton(Button& button);
 
 RFM69 radio;
 Rotary rotary = Rotary(rotaryEncoderPin1, rotaryEncoderPin2);
@@ -151,7 +151,7 @@ void loop()
   Serial.println("Wakeup");
   while(nextSleep > millis())
   {
-    getInputs();
+    checkInputs();
     processInputs();
 //  receiveData();
     sendData();
@@ -161,7 +161,7 @@ void loop()
   delay(5);
 }
 
-void getButton(Button& button)
+void checkButton(Button& button)
 {
   if(!digitalRead(button.pin))
     button.state = true;
@@ -183,11 +183,11 @@ void getButton(Button& button)
   }
 }
 
-void getInputs(void)
+void checkInputs(void)
 {
-  getButton(red);
-  getButton(silver);
-  getButton(rotaryEncoder);
+  checkButton(red);
+  checkButton(silver);
+  checkButton(rotaryEncoder);
   rotaryResult = rotary.process();
 }
 
@@ -195,24 +195,24 @@ void processInputs(void)
 {
   if(red.pressed)
   {
-    nextSleep = millis() + timer;
-    sendStruct(2,1,1,0,0);
+    newSleepTime();
+    sendStruct(1,1,1);
     //Serial.println("Red");
     red.pressed = false; 
   }
 
   if(silver.pressed)
   {
-    nextSleep = millis() + timer;
-    sendStruct(2,2,1,0,0);
+    newSleepTime();
+    sendStruct(1,2,1);
     //Serial.println("Silver");
     silver.pressed = false; 
   }
 
   if(rotaryEncoder.pressed)
   {
-    nextSleep = millis() + timer;
-    sendStruct(2,3,1,0,0);
+    newSleepTime();
+    sendStruct(1,3,1);
     //Serial.println("Button");
     rotaryEncoder.pressed = false;
   }
@@ -220,26 +220,24 @@ void processInputs(void)
   if (rotaryResult) {
     if(rotaryResult == DIR_CW)
     {
-      nextSleep = millis() + timer;
-      sendStruct(2,4,1,0,0);
+      newSleepTime();
+      sendStruct(1,4,1);
       //Serial.println("Right");
     }
     else
     {
-      nextSleep = millis() + timer;
-      sendStruct(2,4,0,0,0);
+      newSleepTime();
+      sendStruct(1,4,2);
       //Serial.println("Left");
     }
   }
 }
 
-void sendStruct(int toNode, int function, int value1, int value2, int value3)
+void sendStruct(int toNode, int function, long value)
 {
   toNodeID = toNode;
   txStruct.function = function;
-  txStruct.value1 = value1;
-  txStruct.value2 = value2;
-  txStruct.value3 = value3;
+  txStruct.value = value;
   gotTxStruct = true;
 }
 
@@ -285,17 +283,17 @@ void processStruct(void)
     switch(rxStruct.function)
     {    
     default: // ping back
-      sendStruct(rxStruct.fromNodeID, rxStruct.function, rxStruct.value1, rxStruct.value2, rxStruct.value3);
+      sendStruct(rxStruct.fromNodeID, rxStruct.function, rxStruct.value);
       break;
     }
     gotRxStruct = false;
   }
 }
 
-
-
-
-
+void newSleepTime(void)
+{
+  nextSleep = millis() + timer;
+}
 
 
 

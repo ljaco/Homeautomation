@@ -44,23 +44,17 @@ void sendSerialRadioData(byte destination, byte function = 0, long value = 0);
 
 typedef struct {
   byte    fromNodeID;
-  byte    voltage;
-  byte    temperature;
   byte    function;
   long    value;
+  byte    voltage;
+  byte    temperature;
+  int     RSSI;
 }
 Payload;
 
 Payload rxStruct;
 
-int lastRSSI = 0;
-
 bool gotSerialRXData = false;
-
-char mqtt_buff[30];
-
-char serial_buff[30];
-String serialString;
 
 EthernetClient ethernetClient; 
 PubSubClient mqtt(MQTT_SERVER, 1883, callback, ethernetClient);
@@ -68,14 +62,11 @@ Adafruit_NeoPixel pixel = Adafruit_NeoPixel(1, 7, NEO_GRB + NEO_KHZ800);
 
 bool newPush = false;
 bool newRelease = true;
-int buzzer  = 8;
-int button   = 9;
-bool gotRed = false;
-bool gotGreen = false;
-bool gotBlue = false;
-byte red = 0;
-byte green = 0;
-byte blue = 0;
+const int buzzerPin  = 8;
+const int buttonPin   = 9;
+
+long pixelColor = 0;
+bool gotColor = false;
 
 
 void setup()
@@ -95,15 +86,10 @@ void setup()
   //  }
   //  Serial.println();
 
-  if (mqtt.connect("arduinoClient"))
+  if (mqtt.connect("eth1Client"))
   {     
-    mqtt.subscribe("#"); // subscribe to all topics
-    //    mqtt.subscribe("buzzer");
-    //    mqtt.subscribe("remoteBuzzer");
-    //    mqtt.subscribe("temperature1");
-    //    mqtt.subscribe("humidity1");
-    //    mqtt.subscribe("humidity1");
-    //    mqtt.subscribe("node/+/+");
+    mqtt.subscribe("node/+/out/+"); // subscribe to all outgoing node topics
+    mqtt.subscribe("eth/1/out/+"); // subscribe to all outgoing eth topics
 
     //Serial.println("Connected to MQTT");
   }
@@ -112,16 +98,16 @@ void setup()
     //Serial.println("Failed to connected to MQTT");
   }
 
-  pinMode(button, INPUT_PULLUP);
-  pinMode(buzzer, OUTPUT);
-  digitalWrite(buzzer, HIGH);
+  pinMode(buttonPin, INPUT_PULLUP);
+  pinMode(buzzerPin, OUTPUT);
+  digitalWrite(buzzerPin, HIGH);
   pixel.begin();
 }
 
 void loop()
 { 
   mqtt.loop();
-  handleInputs();
+  checkInputs();
   getSerialRadioData();
   newPublishToMqtt();
   updatePixel();
@@ -132,6 +118,7 @@ void callback(char* topic, byte* payload, unsigned int length)
   String topicStr = String(topic);
 
   int i = 0;
+  char mqtt_buff[30];
   for(i=0; i<length; i++)
     mqtt_buff[i] = payload[i];
   mqtt_buff[i] = '\0';
@@ -144,109 +131,59 @@ void callback(char* topic, byte* payload, unsigned int length)
 
 
 
-  // topicStr == toNode8/function2
-  //             01234567890123456 == 17 char
+  // topicStr == node/8/out/2
+  //             01234567890123456 == 12 char
   // messageStr == s,1,2,3 or just 2
-
-  if(topicStr.substring(0,6) == "toNode")
+  byte firstSlash = topicStr.indexOf('/');
+  byte secondSlash = topicStr.indexOf('/', firstSlash + 1);
+  byte thirdSlash = topicStr.indexOf('/', secondSlash + 1);
+  byte function = topicStr.substring(thirdSlash, topicStr.length()).toInt();
+  long value = messageStr.toInt();
+  
+  if(topicStr.substring(0,firstSlash) == "node")
   {
-    byte slash = topicStr.indexOf('/');
-    byte toNode = topicStr.substring(6,slash).toInt();
-    byte function = topicStr.substring(slash + 9, topicStr.length()).toInt();
-    
-    if(messageStr.substring(0,1) == "s")
-    {
-      byte secondComma = messageStr.indexOf(',', 2);
-      byte thirdComma = messageStr.lastIndexOf(',');
-      int value1 = messageStr.substring(2,secondComma).toInt();
-      int value2 = messageStr.substring(secondComma + 1, thirdComma).toInt();
-      int value3 = messageStr.substring(thirdComma + 1, messageStr.length()).toInt();
-      
-      sendSerialRadioData(toNode, function, value1, value2, value3);
-    }
-    else
-    {
-      int value = messageStr.toInt();
-      
-      sendSerialRadioData(toNode, function, value);
-    }
+    byte toNode = topicStr.substring(firstSlash,secondSlash).toInt();
+    sendSerialRadioData(toNode, function, value);  
   }
-  else
+  else if(topicStr.substring(0,firstSlash) == "eth")
   {
-    if (topicStr == "buzzer")
+  switch(function)
     {
-      if(messageStr == "1")
-        digitalWrite(buzzer, LOW);
-      else if(messageStr == "0")
-        digitalWrite(buzzer, HIGH);
-    }
-
-
-//    else if (strcmp(topic,"remoteBuzzer") == 0)
-//    {
-//      if(messageStr == "1")
-//        sendSerialRadioData(3,3,1);
-//      else if(messageStr == "0")
-//        sendSerialRadioData(3,3,0);
-//    }
-
-
-    else if (strcmp(topic,"RGB/red") == 0)
-    {
-      red = messageStr.toInt();
-      gotRed = true;
-    }
-
-
-    else if (strcmp(topic,"RGB/green") == 0)
-    {
-      green = messageStr.toInt();
-      gotGreen = true;
-    }
-
-
-    else if (strcmp(topic,"RGB/blue") == 0)
-    {
-      blue = messageStr.toInt();
-      gotBlue = true;
-    }
-
-
-    else if (strcmp(topic,"led1") == 0)
-    {
-
-    }
-
-
-    else if (strcmp(topic,"bla") == 0)
-    {
-
-    }
-
-
-    else if (strcmp(topic,"blo") == 0)
-    {
-
-    }
-
-
-    else
-    {
-      Serial.println("No topic match!"); 
+    case 0:
+    break;
+    
+    case 1:
+    if(messageStr == "1")
+      digitalWrite(buzzerPin, LOW);
+    else if(messageStr == "0")
+      digitalWrite(buzzerPin, HIGH);
+    break;
+    
+    case 2:
+    pixelColor = value;
+    gotColor = true;
+    break;
+    
+    case 3:
+    break;
+    
+    default:
+    break;
+    
     }
   }
 }
 
-void handleInputs(void)
+void checkInputs(void)
 {
-  if(digitalRead(button) == 0 && !newPush){
-    mqtt.publish("buzzer", (uint8_t*)"1", 1, true);
+  if(digitalRead(buttonPin) == 0 && !newPush){
+    mqtt.publish("eth/1/in/1", (uint8_t*)"1", 1, true);
     //Serial.println("PUSHED");
     newPush = true;
     newRelease = false;
   }
-  else if (digitalRead(button) == 1 && !newRelease){
-    mqtt.publish("buzzer", (uint8_t*)"0", 1, true);
+  else if (digitalRead(buttonPin) == 1 && !newRelease){
+    mqtt.publish("eth/1/in/1", (uint8_t*)"0", 1, true);
     //Serial.println("RELEASED");
     newRelease = true;
     newPush = false;
@@ -254,135 +191,74 @@ void handleInputs(void)
 }
 
 void getSerialRadioData(void)
-{ // s,3,9,5,0,0,0,24; enter button
+{ // s,9,2,1,0,23,-45;
   if(Serial.available() > 0)
   { 
     delay(4); // time to receive some char
     if(Serial.read() == 's')
-    {  // s,fromNode,func,val1,val2,val3,volt,temp;
+    {  // s,fromNode,function,value,volt,temp,RSSI;
       rxStruct.fromNodeID = Serial.parseInt();
       rxStruct.function = Serial.parseInt();
-      rxStruct.value1 = Serial.parseInt();
-      rxStruct.value2 = Serial.parseInt();
-      rxStruct.value3 = Serial.parseInt();
+      rxStruct.value = Serial.parseInt();
       rxStruct.voltage = Serial.parseInt();
       rxStruct.temperature = Serial.parseInt();
-      lastRSSI = Serial.parseInt();
+      rxStruct.RSSI = Serial.parseInt();
       if(Serial.read() == ';')
         gotSerialRXData = true;
     }
   }
 }
 
-void sendSerialRadioData(byte destination, byte function, int value1, int value2, int value3)
+void sendSerialRadioData(byte destination, byte function, long value)
 {
   char buffer [25];
-  sprintf(buffer, "s,%d,%d,%d,%d,%d;",destination, function, value1, value2, value3);
+  sprintf(buffer, "s,%d,%d,%d;",destination, function, value);
   Serial.print(buffer);
-
-  //  Serial.print('s');
-  //  Serial.print(',');
-  //  Serial.print(destination);
-  //  Serial.print(',');
-  //  Serial.print(function);
-  //  Serial.print(',');
-  //  Serial.print(value1);
-  //  Serial.print(',');
-  //  Serial.print(value2);
-  //  Serial.print(',');
-  //  Serial.print(value3);
-  //  Serial.print(';');
 }
 
 void newPublishToMqtt (void)
 {
   if(gotSerialRXData)
   {
+    char topicValue [25];
+    sprintf(topicValue, "node/%d/in/%d",rxStruct.fromNodeID, rxStruct.function);
+    char value [12];
+    sprintf(value, "%d",rxStruct.value);
+    mqtt.publish(topicValue, (uint8_t*)value, strlen(value), true);
 
-    char topic1 [35];
-    sprintf(topic1, "fromNode%d/function%d/value1",rxStruct.fromNodeID, rxStruct.function);
-    char message1 [10];
-    sprintf(message1, "%d",rxStruct.value1);
-    mqtt.publish(topic1, (uint8_t*)message1, strlen(message1), true);
-
-
-    char topic2 [35];
-    sprintf(topic2, "fromNode%d/function%d/value2",rxStruct.fromNodeID, rxStruct.function);
-    char message2 [10];
-    sprintf(message2, "%d",rxStruct.value2);
-    mqtt.publish(topic2, (uint8_t*)message2, strlen(message2), true);
-
-
-    char topic3 [35];
-    sprintf(topic3, "fromNode%d/function%d/value3",rxStruct.fromNodeID, rxStruct.function);
-    char message3 [10];
-    sprintf(message3, "%d",rxStruct.value3);
-    mqtt.publish(topic3, (uint8_t*)message3, strlen(message3), true);
-
-
-    char nodeVoltage [35];
-    sprintf(nodeVoltage, "fromNode%d/voltage",rxStruct.fromNodeID);
-    char voltage [10];
+    char topicVoltage [25];
+    sprintf(topicVoltage, "node/%d/in/voltage",rxStruct.fromNodeID);
+    char voltage [12];
     sprintf(voltage, "%d",rxStruct.voltage);
-    mqtt.publish(nodeVoltage, (uint8_t*)voltage, strlen(voltage), true);
+    mqtt.publish(topicVoltage, (uint8_t*)voltage, strlen(voltage), true);
 
-
-    char nodeTemperature [35];
-    sprintf(nodeTemperature, "fromNode%d/temperature",rxStruct.fromNodeID);
-    char temperature [10];
+    char topicTemperature [30];
+    sprintf(topicTemperature, "node/%d/in/temperature",rxStruct.fromNodeID);
+    char temperature [12];
     sprintf(temperature, "%d",rxStruct.temperature);
-    mqtt.publish(nodeTemperature, (uint8_t*)temperature, strlen(temperature), true);
+    mqtt.publish(topicTemperature, (uint8_t*)temperature, strlen(temperature), true);
 
-
-    char nodeRSSI [35];
-    sprintf(nodeRSSI, "fromNode%d/rssi",rxStruct.fromNodeID);
-    char rssi [10];
-    sprintf(rssi, "%d", lastRSSI);
-    mqtt.publish(nodeRSSI, (uint8_t*)rssi, strlen(rssi), true);
-
-
-    //mqtt.publish("nodes/node99/function0/value0", "88");
+    char topicRSSI [25];
+    sprintf(topicRSSI, "node/%d/in/rssi",rxStruct.fromNodeID);
+    char rssi [12];
+    sprintf(rssi, "%d", rxStruct.RSSI);
+    mqtt.publish(topicRSSI, (uint8_t*)rssi, strlen(rssi), true);
+    
     gotSerialRXData = false;
   }
-
 }
 
 void updatePixel (void)
 {
-  if(gotRed && gotGreen && gotBlue)
+  if(gotColor)
   {
-    red = map(red, 0, 100, 0, 255);
-    green = map(green, 0, 100, 0, 255);
-    blue = map(blue, 0, 100, 0, 255);
+    byte red = map((pixelColor >> 20), 0, 100, 0, 255);
+    byte green = map(((pixelColor >> 10) & 0x3ff), 0, 100, 0, 255);
+    byte blue = map((pixelColor & 0x3ff), 0, 100, 0, 255);
     pixel.setPixelColor(0, red, green, blue);
     pixel.show();
-    gotRed = false;
-    gotGreen = false;
-    gotBlue = false;
   }
-
 }
-
-//void serialDebug(void)
-//{
-//  if(serialRadio.available() > 0)
-//  {
-//    Serial.println(serialRadio.available());
-//    delay(4);
-//    int i = 0;
-//    char buffer [20]; 
-//    while(serialRadio.available() > 0)
-//    {
-//      Serial.print(serialRadio.read(), BIN);
-//      Serial.println();
-//    }
-//  }
-//
-//}
-
-
-
-
 
 
 
