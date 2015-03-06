@@ -44,16 +44,15 @@ void sendSerialRadioData(byte destination, byte function = 0, long value = 0);
 
 typedef struct {
   byte    fromNodeID;
-  byte    function;
-  int     value1;
-  int     value2;
-  int     value3;
   byte    voltage;
   byte    temperature;
-} 
+  byte    function;
+  long    value;
+}
 Payload;
 
 Payload rxStruct;
+
 int lastRSSI = 0;
 
 bool gotSerialRXData = false;
