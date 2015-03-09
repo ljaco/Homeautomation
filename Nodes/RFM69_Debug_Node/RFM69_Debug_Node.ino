@@ -36,16 +36,16 @@
 #define ENCRYPTKEY  "sampleEncryptKey"
 bool highPower = true;
 int powerLevel = 8;
-bool promiscuousMode = false;
+bool promiscuousMode = true;
 unsigned int retries = 5;
 unsigned int retryWaitTime = 500;
 
-typedef struct {
-  int     fromNodeID;
-  int     function;
-  int     value1;
-  //int     value2;
-  //int     value3;
+typedef struct
+{
+  byte     fromNodeID;
+  byte     function;
+  long     value;
+  byte     voltage;
   byte     temperature;
 }
 Payload; //7 bytes
@@ -57,7 +57,6 @@ int toNodeID = 0;
 bool gotRxData = false;
 bool gotRxStruct = false;
 bool gotTxStruct = false;
-
 
 bool isPayload = false;
 unsigned int packetCount = 0;
@@ -81,20 +80,22 @@ void setup()
   radio.encrypt(ENCRYPTKEY);
   radio.promiscuous(promiscuousMode);
   txStruct.fromNodeID = NODEID;
+  txStruct.voltage = 0;
   Serial.println("RFM69HW Debug Node");
   Serial.println("Available commands:");
   Serial.println("R = read a register: R,number (in DEC)");
   Serial.println("r = read all register values");
   Serial.println("E = enable encryption, default");
   Serial.println("e = disable encryption");
-  Serial.println("M = turn promiscuous mode on");
-  Serial.println("m = turn promiscuous mode off, default");
+  Serial.println("M = turn promiscuous mode on, default");
+  Serial.println("m = turn promiscuous mode off");
   Serial.println("t = get radio temperature");
   Serial.println("f = get radio frequency, default 433000000 Hz");
   Serial.println("p = set power level: p,powerLevel, default 8");
   Serial.println("H = turn high power on, default");
   Serial.println("h = turn high power off");
-  Serial.println("s = send struct to node: s,node,function,value1");
+  Serial.println("c = rc calibration");
+  Serial.println("s = send struct to node: s,node,function,value");
   Serial.println();
 }
 
@@ -158,7 +159,7 @@ void processSerial(void)
       break;
 
     case 't':
-      Serial.print("Radio Temp is ");
+      Serial.print("Radio temperature is ");
       Serial.print(radio.readTemperature(-1));
       Serial.println("C");
       break;
@@ -195,15 +196,20 @@ void processSerial(void)
       radio.setHighPower(highPower);
       Serial.println("High power is off");
       break;
+      
+    case 'c':
+      radio.rcCalibration();
+      Serial.println("Calibration done.");
+      break;
 
     case 's':
       delay(1);
-      if (Serial.available()>4)
+      if (Serial.available()>2)
       {
-        delay(2);
+        delay(3);
         toNodeID = Serial.parseInt();
         txStruct.function = Serial.parseInt();
-        txStruct.value1 = Serial.parseInt();
+        txStruct.value = Serial.parseInt();
         gotTxStruct = true;
       }
       break;
@@ -366,8 +372,10 @@ void displayData(void)
       Serial.print(rxStruct.fromNodeID);
       Serial.print(" function = ");
       Serial.print(rxStruct.function);
-      Serial.print(" value1 = ");
-      Serial.print(rxStruct.value1);
+      Serial.print(" value = ");
+      Serial.print(rxStruct.value);
+      Serial.print(" voltage = ");
+      Serial.print(rxStruct.voltage);
       Serial.print(" temperature = ");
       Serial.print(rxStruct.temperature);
       Serial.print(']');
@@ -406,8 +414,10 @@ void sendData()
     Serial.print(sizeof(txStruct));
     Serial.print(" bytes) with [function = ");
     Serial.print(txStruct.function);
-    Serial.print(" value1 = ");
-    Serial.print(txStruct.value1);
+    Serial.print(" value = ");
+    Serial.print(txStruct.value);
+    Serial.print(" voltage = ");
+    Serial.print(txStruct.voltage);
     Serial.print(" temperature = ");
     Serial.print(txStruct.temperature);
     Serial.print("] ");
@@ -421,16 +431,5 @@ void sendData()
     gotTxStruct = false;
   }
 }
-
-
-
-
-
-
-
-
-
-
-
 
 

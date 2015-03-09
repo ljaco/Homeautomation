@@ -42,7 +42,7 @@ bool promiscuousMode = false;
 unsigned int retries = 2;
 unsigned int retryWaitTime = 50;
 
-void sendStruct(int toNode, int function=0, int value=0);
+void sendStruct(int toNode, int function=0, long value=0);
 
 typedef struct {
   byte    fromNodeID;
@@ -91,7 +91,7 @@ bool gotRxStruct = false;
 bool gotTxStruct = false;
 
 unsigned long nextSleep = 0;
-long timer = 5000;
+long time = 5000;
 
 int toNodeID = 0;
 
@@ -143,7 +143,7 @@ void loop()
   // Do something here
   // Example: Read sensor, data logging, data transmission.
 
-  nextSleep = millis() + timer;
+  nextSleep = millis() + time;
 
   digitalWrite(rotaryEncoderPin1, HIGH);
   digitalWrite(rotaryEncoderPin2, HIGH);
@@ -292,7 +292,7 @@ void processStruct(void)
 
 void newSleepTime(void)
 {
-  nextSleep = millis() + timer;
+  nextSleep = millis() + time;
 }
 
 

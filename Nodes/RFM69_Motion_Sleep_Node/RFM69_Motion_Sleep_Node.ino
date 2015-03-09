@@ -1,8 +1,8 @@
 ///////////////////////////////////////////////////////////////////////////////////
 // (c) Lucas Jacomet
-// 06.03.2015
-// RFM69HW MQTT Serial Node
-// 5V Arduino pro Mini with LLC
+// 09.03.2015
+// RFM69HW Motion Node
+// 3.3V Arduino pro Mini with LLC
 
 //      Pinmap:
 //          A0:
@@ -13,8 +13,8 @@
 //  SCL     A5:
 //          A6:
 //          A7:
-//  RX      D0: FTDI TX for programming and communication to ethernet gateway TX
-//  TX      D1: FTDI RX for programming and communication to ethernet gateway RX
+//  RX      D0: FTDI TX for programming only
+//  TX      D1: FTDI RX for programming only
 //  INT0    D2: DIO0 RFM69HW
 //  INT1   ~D3: 
 //          D4: 
@@ -22,7 +22,7 @@
 //         ~D6: 
 //          D7: 
 //          D8: 
-//         ~D9: 
+//         ~D9: PIR motion sensor
 //  SS    ~D10: HV1 - LV1 - NSS RFM69HW
 //  MOSI  ~D11: HV2 - LV2 - MOSI RFM69HW
 //  MISO   D12: MISO RFM69HW
@@ -31,7 +31,7 @@
 #include <RFM69.h>
 #include <SPI.h>
 
-#define NODEID      1
+#define NODEID      5
 #define NETWORKID   88
 #define ENCRYPTKEY  "sampleEncryptKey"
 bool highPower = true;
@@ -40,8 +40,7 @@ bool promiscuousMode = false;
 unsigned int retries = 2;
 unsigned int retryWaitTime = 50;
 
-typedef struct
-{
+typedef struct {
   byte    fromNodeID;
   byte    function;
   long    value;
@@ -51,24 +50,27 @@ typedef struct
 Payload;
 
 Payload txStruct;
-Payload rxStruct;
 
-int lastRSSI = 0;
-
-bool gotRxStruct = false;
 bool gotTxStruct = false;
 
 byte toNodeID = 0;
 
-char serial_buff[20];
-String serialString;
+bool lastMotionState = false;
+
+const int motionPin = 9;
 
 RFM69 radio;
+
+
+void wakeUp()
+{
+  // interrupt handler
+}
+
 
 void setup()
 {
   Serial.begin(57600);
-  Serial.setTimeout(5);
   delay(10);
   radio.initialize(RF69_433MHZ,NODEID,NETWORKID);
   radio.setHighPower(highPower);
@@ -76,69 +78,28 @@ void setup()
   radio.encrypt(ENCRYPTKEY);
   radio.promiscuous(promiscuousMode);
   txStruct.fromNodeID = NODEID;
-  txStruct.voltage = 0;
+  pinMode(motionPin, INPUT);
 }
 
 void loop() 
 {
-  receiveRadioData();
-  processRadioData();
-  getSerialData();
-  sendRadioData();
+  sendData();
+  checkForMotion();
 }
 
-void receiveRadioData(void)
+void sendStruct(byte toNode, byte function, long value)
 {
-  if (radio.receiveDone())
-  {
-    if ((radio.DATALEN = sizeof(Payload)))
-    {
-      rxStruct = *(Payload*)radio.DATA;
-      lastRSSI = radio.readRSSI();
-      gotRxStruct = true;
-    }
-    else
-    {
-    }
-
-    if (radio.ACKRequested())
-    {
-      radio.sendACK();
-    }
-  }
+  toNodeID = toNode;
+  txStruct.function = function;
+  txStruct.value = value;
+  gotTxStruct = true;
 }
 
-void processRadioData(void)
-{
-  if(gotRxStruct)
-  {
-    char buffer [30];
-    sprintf(buffer, "s,%d,%d,%ld,%d,%d,%d;",rxStruct.fromNodeID, rxStruct.function, rxStruct.value, rxStruct.voltage, rxStruct.temperature, lastRSSI);
-    Serial.println(buffer);
-    gotRxStruct = false;
-  }
-}
-
-void getSerialData(void)
-{
-  if(Serial.available() > 0)
-  {
-    delay(4); // time to receive some char
-    if(Serial.read() == 's')
-    {  // s,toNodeID,function,value;
-      toNodeID = Serial.parseInt();
-      txStruct.function = Serial.parseInt();
-      txStruct.value = Serial.parseInt();
-      if(Serial.read() == ';')
-        gotTxStruct = true;
-    }
-  }
-}
-
-void sendRadioData(void)
+void sendData()
 {
   if(gotTxStruct)
   {
+    txStruct.voltage = 0;
     txStruct.temperature = radio.readTemperature(-1);
     radio.send(toNodeID, (const void*)(&txStruct), sizeof(txStruct));
     //  if(radio.sendWithRetry(toNodeID, (const void*)(&txStruct), sizeof(txStruct)))
@@ -148,6 +109,32 @@ void sendRadioData(void)
     gotTxStruct = false;
   }
 }
+
+
+void checkForMotion (void)
+{
+  if(digitalRead(motionPin) == HIGH && !lastMotionState)
+  {
+    sendStruct(1,20,1);
+    lastMotionState = true;
+  }
+  else if(digitalRead(motionPin) == LOW && lastMotionState)
+  {
+    sendStruct(1,20,0);
+    lastMotionState = false; 
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 

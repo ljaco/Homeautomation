@@ -42,7 +42,8 @@ IPAddress subnet(255, 255, 255, 0);
 
 void sendSerialRadioData(byte destination, byte function = 0, long value = 0);
 
-typedef struct {
+typedef struct
+{
   byte    fromNodeID;
   byte    function;
   long    value;
@@ -73,6 +74,7 @@ void setup()
 {
   Serial.begin(57600);
   delay(500);
+  pixel.begin();
   if (Ethernet.begin(mac) == 0)
     //  {
     //    Serial.println("Failed to configure Ethernet using DHCP");
@@ -86,11 +88,11 @@ void setup()
   //  }
   //  Serial.println();
 
-  if (mqtt.connect("eth1Client"))
+  if (mqtt.connect("eth1Client", "eth/1/in/status", 0, 1, "offline"))
   {     
     mqtt.subscribe("node/+/out/+"); // subscribe to all outgoing node topics
     mqtt.subscribe("eth/1/out/+"); // subscribe to all outgoing eth topics
-
+    mqtt.publish("eth/1/in/status", (uint8_t*)"online", 6, true);
     //Serial.println("Connected to MQTT");
   }
   else
@@ -101,7 +103,8 @@ void setup()
   pinMode(buttonPin, INPUT_PULLUP);
   pinMode(buzzerPin, OUTPUT);
   digitalWrite(buzzerPin, HIGH);
-  pixel.begin();
+  pixel.setPixelColor(0, 0, 0, 0);
+  pixel.show();
 }
 
 void loop()
@@ -137,12 +140,12 @@ void callback(char* topic, byte* payload, unsigned int length)
   byte firstSlash = topicStr.indexOf('/');
   byte secondSlash = topicStr.indexOf('/', firstSlash + 1);
   byte thirdSlash = topicStr.indexOf('/', secondSlash + 1);
-  byte function = topicStr.substring(thirdSlash, topicStr.length()).toInt();
+  byte function = topicStr.substring(thirdSlash + 1, topicStr.length()).toInt();
   long value = messageStr.toInt();
   
   if(topicStr.substring(0,firstSlash) == "node")
   {
-    byte toNode = topicStr.substring(firstSlash,secondSlash).toInt();
+    byte toNode = topicStr.substring(firstSlash + 1,secondSlash).toInt();
     sendSerialRadioData(toNode, function, value);  
   }
   else if(topicStr.substring(0,firstSlash) == "eth")
@@ -171,6 +174,10 @@ void callback(char* topic, byte* payload, unsigned int length)
     break;
     
     }
+  }
+  else
+  {
+    // No topic mach!
   }
 }
 
@@ -212,7 +219,7 @@ void getSerialRadioData(void)
 void sendSerialRadioData(byte destination, byte function, long value)
 {
   char buffer [25];
-  sprintf(buffer, "s,%d,%d,%d;",destination, function, value);
+  sprintf(buffer, "s,%d,%d,%ld;",destination, function, value);
   Serial.print(buffer);
 }
 
@@ -223,7 +230,7 @@ void newPublishToMqtt (void)
     char topicValue [25];
     sprintf(topicValue, "node/%d/in/%d",rxStruct.fromNodeID, rxStruct.function);
     char value [12];
-    sprintf(value, "%d",rxStruct.value);
+    sprintf(value, "%ld",rxStruct.value);
     mqtt.publish(topicValue, (uint8_t*)value, strlen(value), true);
 
     char topicVoltage [25];
