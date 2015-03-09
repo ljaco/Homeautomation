@@ -20,9 +20,9 @@
 //          D4: 
 //         ~D5: 
 //         ~D6: 
-//          D7: 
-//          D8: 
-//         ~D9: 
+//          D7: NeoPixel
+//          D8: Buzzer
+//         ~D9: Button
 //  SS    ~D10: Ethernet shield
 //  MOSI  ~D11: Ethernet shield
 //  MISO   D12: Ethernet shield

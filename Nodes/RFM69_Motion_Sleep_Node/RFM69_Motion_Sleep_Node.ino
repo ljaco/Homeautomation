@@ -70,8 +70,6 @@ void wakeUp()
 
 void setup()
 {
-  Serial.begin(57600);
-  delay(10);
   radio.initialize(RF69_433MHZ,NODEID,NETWORKID);
   radio.setHighPower(highPower);
   radio.setPowerLevel(powerLevel);
