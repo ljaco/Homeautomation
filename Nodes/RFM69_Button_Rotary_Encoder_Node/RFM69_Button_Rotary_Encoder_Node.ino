@@ -50,7 +50,7 @@ typedef struct {
   long    value;
   byte    voltage;
   byte    temperature;
-} 
+}
 Payload;
 
 Payload txStruct;
@@ -78,15 +78,10 @@ typedef struct{
 Button;
 
 Button red = {redPin,false,false,false,false,0};
-
 Button silver = {silverPin,false,false,false,false,0};
-
 Button rotaryEncoder = {rotaryEncoderButtonPin,false,false,false,false,0};
 
-
-
 bool firstPressed = false;
-
 bool gotRxStruct = false;
 bool gotTxStruct = false;
 
