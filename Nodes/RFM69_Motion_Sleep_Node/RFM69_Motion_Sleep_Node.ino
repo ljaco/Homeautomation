@@ -46,7 +46,7 @@ typedef struct {
   long    value;
   byte    voltage;
   byte    temperature;
-} 
+}
 Payload;
 
 Payload txStruct;
