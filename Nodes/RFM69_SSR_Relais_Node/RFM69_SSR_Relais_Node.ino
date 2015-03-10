@@ -47,7 +47,7 @@ typedef struct {
   //int     value2;
   //int     value3;
   byte     temperature;
-} 
+}
 Payload;
 
 Payload txStruct;
